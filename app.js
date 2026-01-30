@@ -1,6 +1,6 @@
 // 替換為你的 Supabase 憑證
-const SUPABASE_URL = '你的_SUPABASE_URL';
-const SUPABASE_ANON_KEY = '你的_SUPABASE_ANON_KEY';
+const SUPABASE_URL = 'https://wmpehsgqpjurzqphzetn.supabase.co ';
+const SUPABASE_ANON_KEY = 'sb_publishable_cIOKp3SdJrc7D76CrWK-PA_A3JvShVD';
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const chatBox = document.getElementById('chat-box');
