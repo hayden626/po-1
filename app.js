@@ -1,77 +1,52 @@
-// 替換為你的 Supabase 憑證
-const SUPABASE_URL = 'https://wmpehsgqpjurzqphzetn.supabase.co ';
-const SUPABASE_ANON_KEY = 'sb_publishable_cIOKp3SdJrc7D76CrWK-PA_A3JvShVD';
-const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const SB_URL = 'https://wmpehsgqpjurzqphzetn.supabase.co';
+const SB_KEY = 'sb_publishable_cIOKp3SdJrc7D76CrWK-PA_A3JvShVD';
+const supabaseClient = supabase.createClient(SB_URL, SB_KEY);
 
 const chatBox = document.getElementById('chat-box');
-const usernameInput = document.getElementById('username');
+const userInput = document.getElementById('username');
 const contentInput = document.getElementById('content');
-const sendBtn = document.getElementById('send-btn');
+const sendBtn = document.getElementById('btn-send');
+const uploadBtn = document.getElementById('btn-upload');
+const fileInput = document.getElementById('file-input');
 
-// 渲染訊息
-function appendMessage(msg) {
-    const isMe = usernameInput.value === msg.username;
+function render(msg) {
+    const isMe = userInput.value === msg.username;
     const div = document.createElement('div');
-    div.className = `msg ${isMe ? 'sent' : 'received'}`;
+    div.className = `message ${isMe ? 'sent' : 'received'}`;
     
-    div.innerHTML = `
-        <div class="msg-info">${msg.username} • ${new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
-        <div class="msg-text">${msg.content}</div>
-    `;
-    
+    const isImg = msg.content.startsWith('data:image') || msg.content.match(/\.(jpeg|jpg|gif|png|webp)$/i);
+    const body = isImg 
+        ? `<img src="${msg.content}" class="msg-img">` 
+        : `<span>${msg.content}</span>`;
+
+    div.innerHTML = body;
     chatBox.appendChild(div);
     chatBox.scrollTop = chatBox.scrollHeight;
 }
 
-// 獲取歷史紀錄
-async function loadHistory() {
-    const { data, error } = await supabaseClient
-        .from('messages')
-        .select('*')
-        .order('created_at', { ascending: true })
-        .limit(50);
-
-    if (error) console.error('讀取失敗:', error);
-    else data.forEach(appendMessage);
-}
-
-// 發送訊息到 Supabase
-async function handleSend() {
-    const user = usernameInput.value.trim();
-    const text = contentInput.value.trim();
-
+async function send(payload) {
+    const text = payload || contentInput.value.trim();
     if (!text) return;
+    await supabaseClient.from('messages').insert([{ username: userInput.value, content: text }]);
+    contentInput.value = '';
+}
 
-    // 禁用按鈕防止重複點擊
-    sendBtn.disabled = true;
-
-    const { error } = await supabaseClient
-        .from('messages')
-        .insert([{ username: user, content: text }]);
-
-    if (error) {
-        alert('發送失敗，請檢查 Supabase RLS 設定');
-        console.error(error);
-    } else {
-        contentInput.value = ''; // 清空輸入
+uploadBtn.onclick = () => fileInput.click();
+fileInput.onchange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = (ev) => send(ev.target.result);
+        reader.readAsDataURL(file);
     }
-    sendBtn.disabled = false;
-}
+};
 
-// 訂閱即時廣播 (這才是真的 send 完立刻收到的關鍵)
-function initRealtime() {
-    supabaseClient
-        .channel('any') // 頻道名稱隨意
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
-            appendMessage(payload.new);
-        })
-        .subscribe();
-}
+supabaseClient.channel('room').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, p => render(p.new)).subscribe();
 
-// 綁定事件
-sendBtn.onclick = handleSend;
-contentInput.onkeydown = (e) => { if(e.key === 'Enter') handleSend(); };
+sendBtn.onclick = () => send();
+contentInput.onkeyup = (e) => e.key === 'Enter' && send();
 
-// 啟動
-loadHistory();
-initRealtime();
+(async () => {
+    const { data } = await supabaseClient.from('messages').select('*').order('created_at').limit(50);
+    if(data) data.forEach(render);
+})();
